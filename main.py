@@ -1,3 +1,4 @@
+import glob
 import time
 import threading
 import os
@@ -6,26 +7,42 @@ from openpyxl.chart import Reference, ScatterChart, Series
 import pandas as pd
 
 begin_value = 'Sample'  # log数据开头第一个单词，一般为Sample
-file_name = '7250-001-cycle-test'  # log文件名
-excel_name = 'test'  # excel文件名
 
 '''
-根据不同的芯片输入ic_type的值
-1: BQ28Z610, 
-2: SN27541
-若没有相应的芯片类型，则可以把ic_type置为0，然后自定义type0的数据
+目前支持的芯片列表如下：
+BQ28Z610, BQ40Z50R2, SN27541
+若没有相应的芯片类型，则可以把custom_type置为True，然后自定义custom_name的数据
 '''
-ic_type = 2
+custom_type = False
 
 '''
 根据log数据中输出值的命名来修改type0中的值
-如log上的时间名为ElapsedTime，则把type0中的TimeName改为ElapsedTime
+如log上的时间名为ElapsedTime，则把custom_name中的TimeName改为ElapsedTime
 '''
-type0 = ['TimeName', 'VoltageName', 'CurrentName', 'RSOCName', 'RCName', 'FCCName']
+custom_name = ['TimeName', 'VoltageName', 'CurrentName', 'RSOCName', 'RCName', 'FCCName']
 
 g_time_flag = 0
 
 
+# 获取文件夹下所有log后缀的文件名
+def get_file_name():
+    filename = []
+
+    for i in glob.glob(r'./*.log'):
+        filename.append(i)
+
+    for i in range(len(filename)):
+        print(" %d : %s " % (i + 1, filename[i][2:]))
+
+    file_num = input('\n输入文件编号：')
+
+    while not file_num.isdigit() or (int(file_num) - 1) >= len(filename):
+        file_num = input('输入错误，请重新输入：')
+
+    return filename[int(file_num) - 1]
+
+
+# 输出运行时间
 def time_count():
     global g_time_flag
     while True:
@@ -41,10 +58,25 @@ def time_count():
 
 
 class BuildExcel:
-    def __init__(self, log_name):
-        self.file_path = 'E:/Python/project/log_2_excel/' + file_name + '.log'
-        self.excel_path = 'E:/Python/project/log_2_excel/result/' + excel_name + '.xlsx'
-        self.log_name = log_name
+    def __init__(self, log_name, ex_name):
+        self.file_path = log_name
+        self.excel_path = './result/' + ex_name + '.xlsx'
+        self.log_name = None
+
+    # 获取log数据中对应的模块名
+    @staticmethod
+    def get_module_name(line):
+        if ('ElapsedTime' in line and 'Voltage' in line and 'Current' in line
+                and 'RSOC' in line and 'RemCap' in line and 'FullChgCap' in line):
+
+            return ['ElapsedTime', 'Voltage', 'Current', 'RSOC', 'RemCap', 'FullChgCap']
+
+        elif ('~Elapsed(s)' in line and 'Voltage' in line and 'AvgCurrent' in line
+              and 'StateofChg' in line and 'RemCap' in line and 'FullChgCap' in line):
+
+            return ['~Elapsed(s)', 'Voltage', 'AvgCurrent', 'StateofChg', 'RemCap', 'FullChgCap']
+
+        return False
 
     def log_to_excel(self):
         file = open(self.file_path, 'r')
@@ -52,7 +84,7 @@ class BuildExcel:
         file.close()
 
         try:
-            os.mkdir('E:/Python/project/log_2_excel/result/')
+            os.mkdir('./result/')
         except:
             pass
 
@@ -69,6 +101,15 @@ class BuildExcel:
             delimiter = '\t'
 
         i = begin_num
+
+        self.log_name = self.get_module_name(line[begin_num])
+
+        if not self.log_name:
+            if custom_type:
+                self.log_name = custom_name
+            else:
+                return False
+
         while i < len(line):
             line[i] = line[i].split(delimiter)
             i += 1
@@ -111,52 +152,84 @@ class BuildExcel:
         df = pd.DataFrame(new_line)
         df.to_excel(self.excel_path, header=None, index=False)
 
+        return True
+
     def print_chart(self):
         file = openpyxl.load_workbook(self.excel_path)
         sheet = file.active
+        sheet.freeze_panes = 'A2'
 
         chart_sheet = file.create_chartsheet('Chart1')
 
         chart = ScatterChart()
-        chart.title = 'test'
+
+        chart_rsoc = ScatterChart()
+
+        chart.title = 'Project Name Cycle-Test-Curve\n' \
+                      '\t\tF/W: **,\tCharge : *V/*A,\tDischarge : *A\n' \
+                      '\t\t\t\tTested by: '
 
         xvalue = Reference(sheet, min_row=2, min_col=sheet.max_column - 5,
                            max_row=sheet.max_row, max_col=sheet.max_column - 5)
 
-        for i in range(sheet.max_column-4, sheet.max_column+1):
+        for i in range(sheet.max_column - 4, sheet.max_column + 1):
             yvalue = Reference(sheet, min_row=1, min_col=i,
                                max_row=sheet.max_row, max_col=i)
 
             series = Series(yvalue, xvalue, title_from_data=True)
-            chart.append(value=series)
+            if i == sheet.max_column - 2:
+                chart_rsoc.append(value=series)
+            else:
+                chart.append(value=series)
+
+        chart.x_axis.majorGridlines = None
+        chart.y_axis.title = 'Voltage(mV)/Current(mA)/RemCap(mAh)/FullChgCap(mAh)'
+
+        chart_rsoc.y_axis.title = 'RSOC(%)'
+        chart_rsoc.y_axis.crosses = 'max'
+        chart_rsoc.y_axis.axId = 200
+        chart_rsoc.y_axis.majorGridlines = None
+        chart_rsoc.x_axis.majorGridlines = None
+
+        chart += chart_rsoc
+
         chart_sheet.add_chart(chart)
+
         file.save(self.excel_path)
+
         file.close()
 
 
-if __name__ == '__main__':
-    if ic_type == 1:
-        module_name = ['ElapsedTime', 'Voltage', 'Current', 'RSOC', 'RemCap', 'FullChgCap']
-    elif ic_type == 2:
-        module_name = ['~Elapsed(s)', 'Voltage', 'AvgCurrent', 'StateofChg', 'RemCap', 'FullChgCap']
-    else:
-        module_name = type0
+def main():
+    global g_time_flag
+    file_name = get_file_name()
+    excel_name = input('请输入导出Excel表格文件名（不需要添加后缀）：')
 
-    bulid_excel = BuildExcel(module_name)
+    build_excel = BuildExcel(file_name, excel_name)
     time_count_thread = threading.Thread(target=time_count)
     time_count_thread.daemon = True
     time_count_thread.start()
 
     print('正在将log数据写入excel，请耐心等待...')
     g_time_flag = 1
-    bulid_excel.log_to_excel()
+    flag = build_excel.log_to_excel()
     g_time_flag = 0
-    print('\n写入完成')
+
+    if flag:
+        print('\n写入完成')
+    else:
+        print('\n不支持该log格式，请参考代码开头自定义数据名')
+        return False
 
     time.sleep(0.1)
 
     print('正在绘制图表，请耐心等待...')
     g_time_flag = 1
-    bulid_excel.print_chart()
+    build_excel.print_chart()
     g_time_flag = 0
-    print('\n画图完成')
+    print('\n画图完成，文件保存在result文件夹下')
+
+
+if __name__ == '__main__':
+    main()
+    input('按任意键退出')
