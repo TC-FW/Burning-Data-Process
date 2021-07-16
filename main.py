@@ -136,6 +136,8 @@ class BuildExcel:
         # 生成新的二维数组
         new_line = line[begin_num:]
 
+        len_data = len(new_line[1])
+
         for i in range(len(new_line)):
             # 定义首行数据，获取各数据模块的位置
             if i == 0:
@@ -149,71 +151,73 @@ class BuildExcel:
                 new_line[i].extend([' ', 'Time', 'Voltage', 'Current', 'RSOC', 'RC', 'FCC', 'Temperature',
                                     ' ', 'Accumulated', 'Deviation', 'Fuel Gauge Deviation', 'Fuel Gauge Accuracy'])
 
-            else:
+            elif len(new_line[i]) >= len_data:
                 ''' 将通讯错误引起的空白值改为上下数值的均值 '''
                 if not new_line[i][time_num]:
-                    if i+1 >= len(new_line) or not new_line[i+1][time_num]:
-                        temp_time = round(float(new_line[i-1][time_num]) / 3600, 6)
+                    if len(new_line[i+1]) < len_data or not new_line[i+1][time_num]:
+                        temp_time = round((2*float(new_line[i-1][-7])-float(new_line[i-2][-7])), 6)
                     else:
-                        temp_time = round(float((float(new_line[i-1][time_num])+float(new_line[i+1][time_num]))/2/3600), 6)
+                        temp_time = round((float(new_line[i-1][time_num])+float(new_line[i+1][time_num])/3600)/2, 6)
                 else:
                     temp_time = round(float(new_line[i][time_num]) / 3600, 6)
 
                 if not new_line[i][voltage_num]:
-                    if i+1 >= len(new_line) or not new_line[i+1][voltage_num]:
-                        temp_vol = int(new_line[i][voltage_num-1])
+                    if len(new_line[i+1]) < len_data or not new_line[i+1][voltage_num]:
+                        temp_vol = int(2*int(new_line[i-1][-6])-int(new_line[i-2][-6]))
                     else:
-                        temp_vol = int((int(new_line[i - 1][voltage_num]) + int(new_line[i + 1][voltage_num])) / 2)
+                        temp_vol = int((int(new_line[i - 1][-6]) + int(new_line[i + 1][voltage_num])) / 2)
                 else:
                     temp_vol = int(new_line[i][voltage_num])
 
                 if not new_line[i][current_num]:
-                    if i+1 > len(new_line) or not new_line[i+1][current_num]:
-                        temp_curr = abs(int(new_line[i-1][current_num]))
+                    if len(new_line[i+1]) < len_data or not new_line[i+1][current_num]:
+                        temp_curr = abs(int(2*int(new_line[i-1][-5])-int(new_line[i-2][-5])))
                     else:
-                        temp_curr = abs(int((int(new_line[i - 1][current_num]) + int(new_line[i + 1][current_num])) / 2))
+                        temp_curr = abs(int((int(new_line[i - 1][-5]) + int(new_line[i + 1][current_num])) / 2))
                 else:
                     temp_curr = abs(int(new_line[i][current_num]))
 
                 if not new_line[i][rsoc_num]:
-                    if i+1 >= len(new_line) or not new_line[i+1][rsoc_num]:
-                        temp_rsoc = int(new_line[i-1][rsoc_num])
+                    if len(new_line[i+1]) < len_data or not new_line[i+1][rsoc_num]:
+                        temp_rsoc = int(2*int(new_line[i-1][-4])-int(new_line[i-2][-4]))
                     else:
-                        temp_rsoc = int((int(new_line[i-1]) + int(new_line[i+1]))/2)
+                        temp_rsoc = int((int(new_line[i-1][-4]) + int(new_line[i+1][rsoc_num]))/2)
                 else:
                     temp_rsoc = int(new_line[i][rsoc_num])
 
                 if not new_line[i][rc_num]:
-                    if i+1 >= len(rc_num) or not new_line[i+1][rc_num]:
-                        temp_rc = int(new_line[i-1][rc_num])
+                    if len(new_line[i+1]) < len_data or not new_line[i+1][rc_num]:
+                        temp_rc = int(2*int(new_line[i-1][-3]) - int(new_line[i-2][-3]))
                     else:
-                        temp_rc = int((int(new_line[i-1][rc_num]) + int(new_line[i+1][rc_num]))/2)
+                        temp_rc = int((int(new_line[i-1][-3]) + int(new_line[i+1][rc_num]))/2)
                 else:
                     temp_rc = int(new_line[i][rc_num])
 
                 if not new_line[i][fcc_num]:
-                    if i+1 >= len(fcc_num) or not new_line[i+1][fcc_num]:
-                        temp_fcc = int(new_line[i-1][fcc_num])
+                    if len(new_line[i+1]) < len_data or not new_line[i+1][fcc_num]:
+                        temp_fcc = int(2*int(new_line[i-1][-2]) - int(new_line[i-2][-2]))
                     else:
-                        temp_fcc = int((int(new_line[i-1][fcc_num]) + int(new_line[i+1][fcc_num]))/2)
+                        temp_fcc = int((int(new_line[i-1][-2]) + int(new_line[i+1][fcc_num]))/2)
                 else:
                     temp_fcc = int(new_line[i][fcc_num])
 
                 if not new_line[i][temp_num]:
-                    if i+1 >= len(temp_num) or not new_line[i+1][temp_num]:
-                        temp_temp = float(new_line[i-1][temp_num])
+                    if len(new_line[i+1]) < len_data or not new_line[i+1][temp_num]:
+                        temp_temp = float(2*float(new_line[i-1][-1]) - float(new_line[i-2][-1]))
                     else:
-                        temp_temp = float((float(new_line[i-1]) + float(new_line[i+1]))/2)
+                        temp_temp = float((float(new_line[i-1][-1]) + float(new_line[i+1][temp_num]))/2)
                 else:
                     temp_temp = float(new_line[i][temp_num])
 
                 ''' 将添加特定数据 '''
                 # 部分芯片通讯出现error时，新生成的数据的位置会被打乱，程序可以自动修复
                 if re.search('error', new_line[i][-1], re.IGNORECASE) and '~Elapsed(s)' in new_line[0]:
-                    new_line[i].extend([temp_time, temp_vol, temp_curr, temp_rsoc, temp_rc, temp_fcc, temp_temp])
-
+                    pass
                 else:
-                    new_line[i].extend([' ', temp_time, temp_vol, temp_curr, temp_rsoc, temp_rc, temp_fcc, temp_temp])
+                    new_line[i].extend(' ')
+
+                new_line[i].extend([temp_time, temp_vol, temp_curr, temp_rsoc, temp_rc, temp_fcc, temp_temp])
+
         # 计算容量
         self.cap_accumulated(new_line)
 
@@ -238,10 +242,11 @@ class BuildExcel:
         disg_flag = 0
 
         i = 1
-        while i < len(line):
+        while i < len(line) and len(line[i]) == len(line[1]):
             global g_term_voltage
             zero_num = 0
             term_num = 0
+
             if not -10 < line[i][current_num] < 10:
                 begin_num = i
 
@@ -264,6 +269,7 @@ class BuildExcel:
                     disg_curr = line[round((end_num - begin_num) / 10) + begin_num][current_num]
                     self.disg_current = round(disg_curr / 100) / 10
 
+                    # 判断为放电阶段时，记录下rc 0点和term点，用于计算容量差
                     for n in range(begin_num, end_num):
                         if line[n][rsoc_num] == 0 and zero_num == 0:
                             zero_num = n
@@ -282,14 +288,25 @@ class BuildExcel:
 
                         line[n].extend([' ', temp_cap])
 
-                    cap_dev = line[zero_num][-1] - line[term_num][-1]
-                    cap_dev_percentage = cap_dev / line[term_num][-1]
+                    ''' 一般情况下计算 '''
+                    if zero_num != 0 and term_num != 0:
+                        cap_dev = line[zero_num][-1] - line[term_num][-1]
+                        cap_dev_percentage = cap_dev / line[term_num][-1]
+                    else:
+                        cap_dev = None
+                        cap_dev_percentage = None
 
                     ''' 特殊情况1 '''
                     # 当RSOC瞬间跳为0时，检测上一时刻是否为1，若不是，cap_dev_percentage就为两个时刻的rsoc的差值
                     if cap_dev_percentage == 0:
                         if line[zero_num - 1][rsoc_num] > 1:
                             cap_dev_percentage = (line[zero_num][rsoc_num] - line[zero_num - 1][rsoc_num]) / 100
+
+                    ''' 特殊情况2 '''
+                    # 当rsoc没有出现0的情况下，cap_dev_percentage为term点的rsoc值
+                    if zero_num == 0:
+                        cap_dev = 0
+                        cap_dev_percentage = line[term_num][rsoc_num] / 100
 
                     cap_percentage = line[term_num][-1] / line[begin_num][fcc_num]
                     if cap_percentage > 1:
