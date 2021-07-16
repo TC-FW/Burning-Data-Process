@@ -250,7 +250,7 @@ class BuildExcel:
             if not -10 < line[i][current_num] < 10:
                 begin_num = i
 
-                while True:
+                while i < len(line) and len(line[i]) == len(line[1]):
                     if -10 < line[i][current_num] < 10:
                         end_num = i
                         break
@@ -393,7 +393,7 @@ def main():
     global g_fw_version
     global g_project_name
 
-    print("####### 煲机数据自动处理工具 #######")
+    print("####### 煲机数据自动处理工具V1.3 #######")
     file_name = get_file_name()
     g_project_name = input('请输入项目名称：')
     g_author = input('请输入作者：')
