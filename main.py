@@ -150,42 +150,70 @@ class BuildExcel:
                                     ' ', 'Accumulated', 'Deviation', 'Fuel Gauge Deviation', 'Fuel Gauge Accuracy'])
 
             else:
-                ''' 将通讯错误引起的空白值改为0 '''
+                ''' 将通讯错误引起的空白值改为上下数值的均值 '''
                 if not new_line[i][time_num]:
-                    new_line[i][time_num] = 0
+                    if i+1 >= len(new_line) or not new_line[i+1][time_num]:
+                        temp_time = round(float(new_line[i-1][time_num]) / 3600, 6)
+                    else:
+                        temp_time = round(float((float(new_line[i-1][time_num])+float(new_line[i+1][time_num]))/2/3600), 6)
+                else:
+                    temp_time = round(float(new_line[i][time_num]) / 3600, 6)
+
                 if not new_line[i][voltage_num]:
-                    new_line[i][voltage_num] = 0
+                    if i+1 >= len(new_line) or not new_line[i+1][voltage_num]:
+                        temp_vol = int(new_line[i][voltage_num-1])
+                    else:
+                        temp_vol = int((int(new_line[i - 1][voltage_num]) + int(new_line[i + 1][voltage_num])) / 2)
+                else:
+                    temp_vol = int(new_line[i][voltage_num])
+
                 if not new_line[i][current_num]:
-                    new_line[i][current_num] = 0
+                    if i+1 > len(new_line) or not new_line[i+1][current_num]:
+                        temp_curr = abs(int(new_line[i-1][current_num]))
+                    else:
+                        temp_curr = abs(int((int(new_line[i - 1][current_num]) + int(new_line[i + 1][current_num])) / 2))
+                else:
+                    temp_curr = abs(int(new_line[i][current_num]))
+
                 if not new_line[i][rsoc_num]:
-                    new_line[i][rsoc_num] = 0
+                    if i+1 >= len(new_line) or not new_line[i+1][rsoc_num]:
+                        temp_rsoc = int(new_line[i-1][rsoc_num])
+                    else:
+                        temp_rsoc = int((int(new_line[i-1]) + int(new_line[i+1]))/2)
+                else:
+                    temp_rsoc = int(new_line[i][rsoc_num])
+
                 if not new_line[i][rc_num]:
-                    new_line[i][rc_num] = 0
+                    if i+1 >= len(rc_num) or not new_line[i+1][rc_num]:
+                        temp_rc = int(new_line[i-1][rc_num])
+                    else:
+                        temp_rc = int((int(new_line[i-1][rc_num]) + int(new_line[i+1][rc_num]))/2)
+                else:
+                    temp_rc = int(new_line[i][rc_num])
+
                 if not new_line[i][fcc_num]:
-                    new_line[i][fcc_num] = 0
+                    if i+1 >= len(fcc_num) or not new_line[i+1][fcc_num]:
+                        temp_fcc = int(new_line[i-1][fcc_num])
+                    else:
+                        temp_fcc = int((int(new_line[i-1][fcc_num]) + int(new_line[i+1][fcc_num]))/2)
+                else:
+                    temp_fcc = int(new_line[i][fcc_num])
+
                 if not new_line[i][temp_num]:
-                    new_line[i][temp_num] = 0
+                    if i+1 >= len(temp_num) or not new_line[i+1][temp_num]:
+                        temp_temp = float(new_line[i-1][temp_num])
+                    else:
+                        temp_temp = float((float(new_line[i-1]) + float(new_line[i+1]))/2)
+                else:
+                    temp_temp = float(new_line[i][temp_num])
 
                 ''' 将添加特定数据 '''
                 # 部分芯片通讯出现error时，新生成的数据的位置会被打乱，程序可以自动修复
                 if re.search('error', new_line[i][-1], re.IGNORECASE) and '~Elapsed(s)' in new_line[0]:
-                    new_line[i].extend([round(float(new_line[i][time_num]) / 3600, 6),
-                                        int(new_line[i][voltage_num]),
-                                        abs(int(new_line[i][current_num])),
-                                        int(new_line[i][rsoc_num]),
-                                        int(new_line[i][rc_num]),
-                                        int(new_line[i][fcc_num]),
-                                        float(new_line[i][temp_num])])
+                    new_line[i].extend([temp_time, temp_vol, temp_curr, temp_rsoc, temp_rc, temp_fcc, temp_temp])
 
                 else:
-                    new_line[i].extend([' ',
-                                        round(float(new_line[i][time_num]) / 3600, 6),
-                                        int(new_line[i][voltage_num]),
-                                        abs(int(new_line[i][current_num])),
-                                        int(new_line[i][rsoc_num]),
-                                        int(new_line[i][rc_num]),
-                                        int(new_line[i][fcc_num]),
-                                        float(new_line[i][temp_num])])
+                    new_line[i].extend([' ', temp_time, temp_vol, temp_curr, temp_rsoc, temp_rc, temp_fcc, temp_temp])
         # 计算容量
         self.cap_accumulated(new_line)
 
@@ -260,8 +288,8 @@ class BuildExcel:
                     ''' 特殊情况1 '''
                     # 当RSOC瞬间跳为0时，检测上一时刻是否为1，若不是，cap_dev_percentage就为两个时刻的rsoc的差值
                     if cap_dev_percentage == 0:
-                        if line[zero_num-1][rsoc_num] > 1:
-                            cap_dev_percentage = (line[zero_num][rsoc_num]-line[zero_num-1][rsoc_num])/100
+                        if line[zero_num - 1][rsoc_num] > 1:
+                            cap_dev_percentage = (line[zero_num][rsoc_num] - line[zero_num - 1][rsoc_num]) / 100
 
                     cap_percentage = line[term_num][-1] / line[begin_num][fcc_num]
                     if cap_percentage > 1:
@@ -348,6 +376,7 @@ def main():
     global g_fw_version
     global g_project_name
 
+    print("####### 煲机数据自动处理工具 #######")
     file_name = get_file_name()
     g_project_name = input('请输入项目名称：')
     g_author = input('请输入作者：')
