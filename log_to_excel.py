@@ -19,7 +19,7 @@ BQ28Z610, BQ40Z50R2, SN27541
 custom_type = False
 
 '''
-根据log数据中输出值的命名来修改type0中的值
+根据log数据中输出值的命名来修改custom_name中的值
 如log上的时间名为ElapsedTime，则把custom_name中的TimeName改为ElapsedTime
 '''
 custom_name = ['TimeName', 'VoltageName', 'CurrentName', 'RSOCName', 'RCName', 'FCCName', 'TemperatureName']
