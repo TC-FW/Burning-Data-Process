@@ -173,7 +173,7 @@ class BuildExcel:
                     if len(new_line[i+1]) < len_data or not new_line[i+1][current_num]:
                         temp_curr = abs(int(2*int(new_line[i-1][-5])-int(new_line[i-2][-5])))
                     else:
-                        temp_curr = abs(int((int(new_line[i - 1][-5]) + int(new_line[i + 1][current_num])) / 2))
+                        temp_curr = abs(int((int(new_line[i - 1][-5]) + abs(int(new_line[i + 1][current_num]))) / 2))
                 else:
                     temp_curr = abs(int(new_line[i][current_num]))
 
