@@ -125,7 +125,7 @@ class BuildExcel:
             if custom_type:
                 self.log_name = custom_name
             else:
-                return False
+                return 'error1'
 
         i = begin_num
         # 根据分隔符将log数据分隔
@@ -219,13 +219,16 @@ class BuildExcel:
                 new_line[i].extend([temp_time, temp_vol, temp_curr, temp_rsoc, temp_rc, temp_fcc, temp_temp])
 
         # 计算容量
-        self.cap_accumulated(new_line)
+        cap_result = self.cap_accumulated(new_line)
+
+        if not cap_result:
+            return 'error2'
 
         # 将new_line的数据生成excel
         df = pd.DataFrame(new_line)
         df.to_excel(self.excel_path, header=None, index=False)
 
-        return True
+        return 'success'
 
     def cap_accumulated(self, line):
         # 获取新添加的数据的位置
@@ -296,6 +299,11 @@ class BuildExcel:
                         cap_dev = None
                         cap_dev_percentage = None
 
+                    ''' 错误情况 '''
+                    # 当没有term点时，返回错误
+                    if term_num == 0:
+                        return False
+
                     ''' 特殊情况1 '''
                     # 当RSOC瞬间跳为0时，检测上一时刻是否为1，若不是，cap_dev_percentage就为两个时刻的rsoc的差值
                     if cap_dev_percentage == 0:
@@ -323,6 +331,8 @@ class BuildExcel:
 
             disg_flag = 0
             i += 1
+
+        return True
 
     def print_chart(self):
         file = openpyxl.load_workbook(self.excel_path)
@@ -411,10 +421,13 @@ def main():
     flag = build_excel.log_to_excel()
     g_time_flag = 0
 
-    if flag:
+    if flag == 'success':
         print('\n写入完成')
-    else:
-        print('\n不支持该log格式，请参考代码开头自定义数据名')
+    elif flag == 'error1':
+        print('\n暂时不支持该log格式')
+        return False
+    elif flag == 'error2':
+        print('\n未搜索到term点电压，请检查参数是否输入正确')
         return False
 
     time.sleep(0.1)
