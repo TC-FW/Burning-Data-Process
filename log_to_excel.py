@@ -12,17 +12,10 @@ begin_value = 'Sample'  # log数据开头第一个单词，一般为Sample
 
 '''
 目前测试可以使用的芯片列表如下：
-BQ28Z610, BQ40Z50R2, SN27541
+BQ28Z610, BQ40Z50R2, SN27541， BQ78Z101， BQ20Z45R1
 （同时也支持列表上没有芯片，只要log数据中模块名相同即可）
-若没有相应的芯片类型，则可以把custom_type置为True，然后自定义custom_name的数据
+若log数据不支持，在g_module_name中加入相应的模块名即可
 '''
-custom_type = False
-
-'''
-根据log数据中输出值的命名来修改custom_name中的值
-如log上的时间名为ElapsedTime，则把custom_name中的TimeName改为ElapsedTime
-'''
-custom_name = ['TimeName', 'VoltageName', 'CurrentName', 'RSOCName', 'RCName', 'FCCName', 'TemperatureName']
 
 # 时间显示线程使能
 g_time_flag = 0
@@ -33,6 +26,19 @@ g_chr_voltage = 0
 g_term_voltage = 0
 g_fw_version = ''
 g_project_name = ''
+
+# log数据中的模块名
+g_module_name = [
+    ['ElapsedTime', '~Elapsed(s)'],  # 时间模块名
+    ['Voltage'],  # 电压模块名
+    ['Current', 'AvgCurrent'],  # 电流模块名
+    ['RSOC', 'StateofChg'],  # RSOC模块名
+    ['RemCap'],  # RC模块名
+    ['FullChgCap'],  # FCC模块名
+    ['Temperature']  # 温度模块名
+]
+
+g_warn_message = []
 
 
 # 获取文件夹下所有log后缀的文件名
@@ -81,17 +87,19 @@ class BuildExcel:
     # 获取log数据中对应的模块名
     @staticmethod
     def get_module_name(line):
-        if ('ElapsedTime' in line and 'Voltage' in line and 'Current' in line and 'RSOC' in line
-                and 'RemCap' in line and 'FullChgCap' in line and 'Temperature' in line):
+        global g_module_name
+        module_name = []
 
-            return ['ElapsedTime', 'Voltage', 'Current', 'RSOC', 'RemCap', 'FullChgCap', 'Temperature']
+        for n in range(7):
+            for i in g_module_name[n]:
+                if i in line:
+                    module_name.append(i)
+                    break
 
-        elif ('~Elapsed(s)' in line and 'Voltage' in line and 'AvgCurrent' in line and 'StateofChg' in line
-              and 'RemCap' in line and 'FullChgCap' in line and 'Temperature' in line):
-
-            return ['~Elapsed(s)', 'Voltage', 'AvgCurrent', 'StateofChg', 'RemCap', 'FullChgCap', 'Temperature']
-
-        return False
+        if len(module_name) == 7:
+            return module_name
+        else:
+            return False
 
     def log_to_excel(self):
         file = open(self.file_path, 'r')
@@ -116,16 +124,15 @@ class BuildExcel:
             delimiter = ','
         elif '\t' in line[begin_num]:
             delimiter = '\t'
+        elif ' ' in line[begin_num]:
+            delimiter = ' '
 
         # 获取log数据中个模块的名称
-        self.log_name = self.get_module_name(line[begin_num])
+        self.log_name = self.get_module_name(line[begin_num].split(delimiter))
 
-        # 若没有匹配数据，则检测有没有设置自定义模块
+        # 若没有匹配数据，返回error1报错
         if not self.log_name:
-            if custom_type:
-                self.log_name = custom_name
-            else:
-                return 'error1'
+            return 'error1'
 
         i = begin_num
         # 根据分隔符将log数据分隔
@@ -151,61 +158,67 @@ class BuildExcel:
                 new_line[i].extend([' ', 'Time', 'Voltage', 'Current', 'RSOC', 'RC', 'FCC', 'Temperature',
                                     ' ', 'Accumulated', 'Deviation', 'Fuel Gauge Deviation', 'Fuel Gauge Accuracy'])
 
+                # 数据处理算法
+                '''
+                1. 当通讯错误引起数据读取失败时，程序会根据上下值取中值来估计数据；
+                2. 当有一段数据读取失败时，程序会根据前两个时刻的值来估计数据。
+                （若连续读取失败的数据过多，方法2的估计结果会很不准确，之后版本需要更新算法来估计）
+                '''
             elif len(new_line[i]) >= len_data:
-                ''' 将通讯错误引起的空白值改为上下数值的均值 '''
                 if not new_line[i][time_num]:
-                    if len(new_line[i+1]) < len_data or not new_line[i+1][time_num]:
-                        temp_time = round((2*float(new_line[i-1][-7])-float(new_line[i-2][-7])), 6)
+                    if len(new_line[i + 1]) < len_data or not new_line[i + 1][time_num]:
+                        temp_time = round((2 * float(new_line[i - 1][-7]) - float(new_line[i - 2][-7])), 6)
                     else:
-                        temp_time = round((float(new_line[i-1][time_num])+float(new_line[i+1][time_num])/3600)/2, 6)
+                        temp_time = round(
+                            (float(new_line[i - 1][time_num]) + float(new_line[i + 1][time_num]) / 3600) / 2, 6)
                 else:
                     temp_time = round(float(new_line[i][time_num]) / 3600, 6)
 
                 if not new_line[i][voltage_num]:
-                    if len(new_line[i+1]) < len_data or not new_line[i+1][voltage_num]:
-                        temp_vol = int(2*int(new_line[i-1][-6])-int(new_line[i-2][-6]))
+                    if len(new_line[i + 1]) < len_data or not new_line[i + 1][voltage_num]:
+                        temp_vol = int(2 * int(new_line[i - 1][-6]) - int(new_line[i - 2][-6]))
                     else:
                         temp_vol = int((int(new_line[i - 1][-6]) + int(new_line[i + 1][voltage_num])) / 2)
                 else:
                     temp_vol = int(new_line[i][voltage_num])
 
                 if not new_line[i][current_num]:
-                    if len(new_line[i+1]) < len_data or not new_line[i+1][current_num]:
-                        temp_curr = abs(int(2*int(new_line[i-1][-5])-int(new_line[i-2][-5])))
+                    if len(new_line[i + 1]) < len_data or not new_line[i + 1][current_num]:
+                        temp_curr = abs(int(2 * int(new_line[i - 1][-5]) - int(new_line[i - 2][-5])))
                     else:
                         temp_curr = abs(int((int(new_line[i - 1][-5]) + abs(int(new_line[i + 1][current_num]))) / 2))
                 else:
                     temp_curr = abs(int(new_line[i][current_num]))
 
                 if not new_line[i][rsoc_num]:
-                    if len(new_line[i+1]) < len_data or not new_line[i+1][rsoc_num]:
-                        temp_rsoc = int(2*int(new_line[i-1][-4])-int(new_line[i-2][-4]))
+                    if len(new_line[i + 1]) < len_data or not new_line[i + 1][rsoc_num]:
+                        temp_rsoc = int(2 * int(new_line[i - 1][-4]) - int(new_line[i - 2][-4]))
                     else:
-                        temp_rsoc = int((int(new_line[i-1][-4]) + int(new_line[i+1][rsoc_num]))/2)
+                        temp_rsoc = int((int(new_line[i - 1][-4]) + int(new_line[i + 1][rsoc_num])) / 2)
                 else:
                     temp_rsoc = int(new_line[i][rsoc_num])
 
                 if not new_line[i][rc_num]:
-                    if len(new_line[i+1]) < len_data or not new_line[i+1][rc_num]:
-                        temp_rc = int(2*int(new_line[i-1][-3]) - int(new_line[i-2][-3]))
+                    if len(new_line[i + 1]) < len_data or not new_line[i + 1][rc_num]:
+                        temp_rc = int(2 * int(new_line[i - 1][-3]) - int(new_line[i - 2][-3]))
                     else:
-                        temp_rc = int((int(new_line[i-1][-3]) + int(new_line[i+1][rc_num]))/2)
+                        temp_rc = int((int(new_line[i - 1][-3]) + int(new_line[i + 1][rc_num])) / 2)
                 else:
                     temp_rc = int(new_line[i][rc_num])
 
                 if not new_line[i][fcc_num]:
-                    if len(new_line[i+1]) < len_data or not new_line[i+1][fcc_num]:
-                        temp_fcc = int(2*int(new_line[i-1][-2]) - int(new_line[i-2][-2]))
+                    if len(new_line[i + 1]) < len_data or not new_line[i + 1][fcc_num]:
+                        temp_fcc = int(2 * int(new_line[i - 1][-2]) - int(new_line[i - 2][-2]))
                     else:
-                        temp_fcc = int((int(new_line[i-1][-2]) + int(new_line[i+1][fcc_num]))/2)
+                        temp_fcc = int((int(new_line[i - 1][-2]) + int(new_line[i + 1][fcc_num])) / 2)
                 else:
                     temp_fcc = int(new_line[i][fcc_num])
 
                 if not new_line[i][temp_num]:
-                    if len(new_line[i+1]) < len_data or not new_line[i+1][temp_num]:
-                        temp_temp = float(2*float(new_line[i-1][-1]) - float(new_line[i-2][-1]))
+                    if len(new_line[i + 1]) < len_data or not new_line[i + 1][temp_num]:
+                        temp_temp = float(2 * float(new_line[i - 1][-1]) - float(new_line[i - 2][-1]))
                     else:
-                        temp_temp = float((float(new_line[i-1][-1]) + float(new_line[i+1][temp_num]))/2)
+                        temp_temp = float((float(new_line[i - 1][-1]) + float(new_line[i + 1][temp_num])) / 2)
                 else:
                     temp_temp = float(new_line[i][temp_num])
 
@@ -221,9 +234,6 @@ class BuildExcel:
         # 计算容量
         cap_result = self.cap_accumulated(new_line)
 
-        if not cap_result:
-            return 'error2'
-
         # 将new_line的数据生成excel
         df = pd.DataFrame(new_line)
         df.to_excel(self.excel_path, header=None, index=False)
@@ -231,6 +241,8 @@ class BuildExcel:
         return 'success'
 
     def cap_accumulated(self, line):
+        global g_warn_message
+
         # 获取新添加的数据的位置
         fcc_num = int(len(line[1])) - 2
         rc_num = fcc_num - 1
@@ -254,8 +266,8 @@ class BuildExcel:
                 begin_num = i
 
                 while i < len(line) and len(line[i]) == len(line[1]):
+                    end_num = i
                     if -10 < line[i][current_num] < 10:
-                        end_num = i
                         break
                     else:
                         i += 1
@@ -284,12 +296,18 @@ class BuildExcel:
                     self.cycle_count += 1
 
                     line[begin_num - 1].extend([' ', 0])
-                    for n in range(begin_num, end_num):
+                    for n in range(begin_num, end_num + 1):
                         # 容量计算公式
                         temp_cap = ((line[n][time_num] - line[n - 1][time_num]) *
                                     (line[n][current_num] + line[n - 1][current_num]) / 2 + line[n - 1][-1])
 
                         line[n].extend([' ', temp_cap])
+
+                    ''' Term点未出现情况 '''
+                    # 当没有term点时，代入放电最后一个时刻点进行计算
+                    if term_num == 0:
+                        term_num = end_num
+                        g_warn_message.append('Cycle{0} 未发现Term点，代入放电最后一个时刻点进行计算。'.format(self.cycle_count))
 
                     ''' 一般情况下计算 '''
                     if zero_num != 0 and term_num != 0:
@@ -298,11 +316,6 @@ class BuildExcel:
                     else:
                         cap_dev = None
                         cap_dev_percentage = None
-
-                    ''' 错误情况 '''
-                    # 当没有term点时，返回错误
-                    if term_num == 0:
-                        return False
 
                     ''' 特殊情况1 '''
                     # 当RSOC瞬间跳为0时，检测上一时刻是否为1，若不是，cap_dev_percentage就为两个时刻的rsoc的差值
@@ -322,7 +335,7 @@ class BuildExcel:
                     line[term_num].extend(
                         [cap_dev, '{:.2%}'.format(cap_dev_percentage), '{:.2%}'.format(cap_percentage)])
 
-                    if -0.06 <= cap_dev_percentage <= 0.06:
+                    if -0.06 <= cap_dev_percentage <= 0.08:
                         self.cycle_result['Cycle ' + str(self.cycle_count)] = ('{:.2%} PASS'.format(cap_dev_percentage))
                     else:
                         self.cycle_result['Cycle ' + str(self.cycle_count)] = ('{:.2%} FAIL'.format(cap_dev_percentage))
@@ -402,8 +415,9 @@ def main():
     global g_chr_voltage
     global g_fw_version
     global g_project_name
+    global g_warn_message
 
-    print("####### 煲机数据自动处理工具V1.3 #######")
+    print("####### 煲机数据自动处理工具V1.4.0 #######")
     file_name = get_file_name()
     g_project_name = input('请输入项目名称：')
     g_author = input('请输入作者：')
@@ -426,9 +440,12 @@ def main():
     elif flag == 'error1':
         print('\n暂时不支持该log格式')
         return False
-    elif flag == 'error2':
-        print('\n未搜索到term点电压，请检查参数是否输入正确')
-        return False
+
+    if g_warn_message:
+        print('\nWarning:')
+        for i in g_warn_message:
+            print('\t%s' % i)
+        print('\tTerm voltage 为 {0} mV，请确认是否有误。若输入错误，请重新执行程序。\n'.format(g_term_voltage))
 
     time.sleep(0.1)
 
