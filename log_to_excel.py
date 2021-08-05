@@ -38,6 +38,8 @@ g_module_name = [
     ['Temperature']  # 温度模块名
 ]
 
+g_chip_name = ['sn27541M200', 'bq40z50R2', ]
+
 g_warn_message = []
 
 
@@ -78,6 +80,8 @@ class BuildExcel:
                                    datetime.datetime.now().day, datetime.datetime.now().year))
         self.log_name = None
 
+        self.chip_name = None
+
         self.cycle_count = 0
         self.cycle_result = {}
 
@@ -101,6 +105,18 @@ class BuildExcel:
         else:
             return False
 
+    # 获取芯片型号
+    def get_chip_name(self, line):
+        global g_chip_name
+        for n in g_chip_name:
+            for i in line:
+                if n in i:
+                    self.chip_name = n
+                    break
+
+            if self.chip_name is not None:
+                break
+
     def log_to_excel(self):
         file = open(self.file_path, 'r')
         line = file.readlines()
@@ -112,6 +128,7 @@ class BuildExcel:
             pass
 
         # 当获取到begin_value后，定义这一行为开始行
+        begin_num = None
         for i in range(len(line)):
             if begin_value in line[i]:
                 begin_num = i
@@ -119,13 +136,25 @@ class BuildExcel:
             else:
                 continue
 
+        # 若没有获取到数据开始行，返回error3报错
+        if begin_num is None:
+            return 'error3'
+
+        # 获取芯片型号
+        self.get_chip_name(line=line[:begin_num])
+
         # 获取分隔符
+        delimiter = ''
         if ',' in line[begin_num]:
             delimiter = ','
         elif '\t' in line[begin_num]:
             delimiter = '\t'
         elif ' ' in line[begin_num]:
             delimiter = ' '
+
+        # 若没有获取到分隔符，返回error2报错
+        if not delimiter:
+            return 'error2'
 
         # 获取log数据中个模块的名称
         self.log_name = self.get_module_name(line[begin_num].split(delimiter))
@@ -303,6 +332,19 @@ class BuildExcel:
 
                         line[n].extend([' ', temp_cap])
 
+                    ''' BQ40Z50R2计算term点方式 '''
+                    # 检测 GaugeStat 中的 EDV 位，若EDV位为1，则当该时刻为term点
+                    if self.chip_name == 'bq40z50R2':
+                        gauge_status_num = line[0].index('GaugeStat')
+
+                        for n in range(begin_num, end_num + 1):
+                            try:
+                                if int(line[n][gauge_status_num], 16) & 0x20:
+                                    term_num = n
+                                    break
+                            except:
+                                pass
+
                     ''' Term点未出现情况 '''
                     # 当没有term点时，代入放电最后一个时刻点进行计算
                     if term_num == 0:
@@ -417,7 +459,7 @@ def main():
     global g_project_name
     global g_warn_message
 
-    print("####### 煲机数据自动处理工具V1.4.0 #######")
+    print("####### 煲机数据自动处理工具V1.4.1 #######")
     file_name = get_file_name()
     g_project_name = input('请输入项目名称：')
     g_author = input('请输入作者：')
@@ -440,6 +482,11 @@ def main():
     elif flag == 'error1':
         print('\n暂时不支持该log格式')
         return False
+    elif flag == 'error2':
+        print('\n未知log数据分隔符')
+        return False
+    elif flag == 'error3':
+        print('\n未获取到开始行，请检查log数据开始行是否以Sample开头')
 
     if g_warn_message:
         print('\nWarning:')
