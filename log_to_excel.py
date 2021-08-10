@@ -38,6 +38,7 @@ g_module_name = [
     ['Temperature']  # 温度模块名
 ]
 
+# 芯片型号
 g_chip_name = ['sn27541M200', 'bq40z50R2', ]
 
 g_warn_message = []
@@ -377,7 +378,7 @@ class BuildExcel:
                     line[term_num].extend(
                         [cap_dev, '{:.2%}'.format(cap_dev_percentage), '{:.2%}'.format(cap_percentage)])
 
-                    if -0.06 <= cap_dev_percentage <= 0.08:
+                    if -0.06 <= cap_dev_percentage <= 0.06:
                         self.cycle_result['Cycle ' + str(self.cycle_count)] = ('{:.2%} PASS'.format(cap_dev_percentage))
                     else:
                         self.cycle_result['Cycle ' + str(self.cycle_count)] = ('{:.2%} FAIL'.format(cap_dev_percentage))
@@ -459,7 +460,7 @@ def main():
     global g_project_name
     global g_warn_message
 
-    print("####### 煲机数据自动处理工具V1.4.1 #######")
+    print("####### 煲机数据自动处理工具V1.4.2 #######")
     file_name = get_file_name()
     g_project_name = input('请输入项目名称：')
     g_author = input('请输入作者：')
