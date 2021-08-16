@@ -294,13 +294,17 @@ class BuildExcel:
 
             if not -10 < line[i][current_num] < 10:
                 begin_num = i
-
+                end_num = 0
                 while i < len(line) and len(line[i]) == len(line[1]):
                     end_num = i
                     if -10 < line[i][current_num] < 10:
                         break
                     else:
                         i += 1
+
+                ''' 若充放电时间过短，跳过该充放电阶段 '''
+                if (end_num - begin_num) <= 10 or end_num == 0:
+                    continue
 
                 ''' 充放电判断 '''
                 if line[begin_num][rsoc_num] < line[end_num][rsoc_num]:
@@ -347,8 +351,29 @@ class BuildExcel:
                                 pass
 
                     ''' Term点未出现情况 '''
-                    # 当没有term点时，代入放电最后一个时刻点进行计算
+                    # 当term点没有出现，在end_num往后20个时间点内检测是否出现term点，若出现则定为新的term点
                     if term_num == 0:
+                        i = end_num
+                        while i - end_num < 20 and i < len(line):
+                            # bq40z50r2的term点计算
+                            if self.chip_name == 'bq40z50R2':
+                                if int(line[i][gauge_status_num], 16) & 0x20:
+                                    term_num = i
+                                    break
+                            # 一般情况下根据term_voltage计算
+                            elif line[i][voltage_num] < g_term_voltage:
+                                term_num = i
+                                break
+                            i += 1
+
+                    if term_num != 0:
+                        # 计算放电结束点到新term点的容量
+                        for n in range(end_num+1, term_num+1):
+                            temp_cap = ((line[n][time_num] - line[n - 1][time_num]) *
+                                        (line[n][current_num] + line[n - 1][current_num]) / 2 + line[n - 1][-1])
+                            line[n].extend([' ', temp_cap])
+                    else:
+                        # 若还是没有发现新term点，把end_num点代入term点计算，并提示warning信息
                         term_num = end_num
                         g_warn_message.append('Cycle{0} 未发现Term点，代入放电最后一个时刻点进行计算。'.format(self.cycle_count))
 
