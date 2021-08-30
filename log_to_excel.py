@@ -39,7 +39,7 @@ g_module_name = [
 ]
 
 # 芯片型号
-g_chip_name = ['sn27541M200', 'bq40z50R2', ]
+g_chip_name = ['sn27541M200', 'bq40z50-R2', ]
 
 g_warn_message = []
 
@@ -111,7 +111,7 @@ class BuildExcel:
         global g_chip_name
         for n in g_chip_name:
             for i in line:
-                if n in i:
+                if re.search(n, i, re.IGNORECASE):
                     self.chip_name = n
                     break
 
@@ -339,7 +339,7 @@ class BuildExcel:
 
                     ''' BQ40Z50R2计算term点方式 '''
                     # 检测 GaugeStat 中的 EDV 位，若EDV位为1，则当该时刻为term点
-                    if self.chip_name == 'bq40z50R2':
+                    if self.chip_name == 'bq40z50-R2':
                         gauge_status_num = line[0].index('GaugeStat')
 
                         for n in range(begin_num, end_num + 1):
@@ -356,7 +356,7 @@ class BuildExcel:
                         i = end_num
                         while i - end_num < 20 and i < len(line):
                             # bq40z50r2的term点计算
-                            if self.chip_name == 'bq40z50R2':
+                            if self.chip_name == 'bq40z50-R2':
                                 if int(line[i][gauge_status_num], 16) & 0x20:
                                     term_num = i
                                     break
@@ -485,7 +485,7 @@ def main():
     global g_project_name
     global g_warn_message
 
-    print("####### 煲机数据自动处理工具V1.4.2 #######")
+    print("####### 煲机数据自动处理工具V1.4.3 #######")
     file_name = get_file_name()
     g_project_name = input('请输入项目名称：')
     g_author = input('请输入作者：')
