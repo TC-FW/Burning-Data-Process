@@ -8,11 +8,14 @@ import openpyxl
 from openpyxl.chart import Reference, ScatterChart, Series
 import pandas as pd
 
+# 软件版本 (每次更新后记得修改一下)
+tool_version = 'V1.4.5'
+
 begin_value = 'Sample'  # log数据开头第一个单词，一般为Sample
 
 '''
 目前测试可以使用的芯片列表如下：
-BQ28Z610, BQ40Z50R2, SN27541， BQ78Z101， BQ20Z45R1
+BQ28Z610, BQ40Z50R2, SN27541， BQ78Z101， BQ20Z45R1, BQ40Z50R1
 （同时也支持列表上没有芯片，只要log数据中模块名相同即可）
 若log数据不支持，在g_module_name中加入相应的模块名即可
 '''
@@ -39,7 +42,7 @@ g_module_name = [
 ]
 
 # 芯片型号
-g_chip_name = ['sn27541M200', 'bq40z50-R2', ]
+g_chip_name = ['sn27541M200', 'bq40z50']
 
 g_warn_message = []
 
@@ -337,9 +340,9 @@ class BuildExcel:
 
                         line[n].extend([' ', temp_cap])
 
-                    ''' BQ40Z50R2计算term点方式 '''
+                    ''' BQ40Z50计算term点方式 '''
                     # 检测 GaugeStat 中的 EDV 位，若EDV位为1，则当该时刻为term点
-                    if self.chip_name == 'bq40z50-R2':
+                    if self.chip_name == 'bq40z50':
                         gauge_status_num = line[0].index('GaugeStat')
 
                         for n in range(begin_num, end_num + 1):
@@ -355,8 +358,8 @@ class BuildExcel:
                     if term_num == 0:
                         i = end_num
                         while i - end_num < 20 and i < len(line):
-                            # bq40z50r2的term点计算
-                            if self.chip_name == 'bq40z50-R2':
+                            # bq40z50的term点计算
+                            if self.chip_name == 'bq40z50':
                                 if int(line[i][gauge_status_num], 16) & 0x20:
                                     term_num = i
                                     break
@@ -485,7 +488,7 @@ def main():
     global g_project_name
     global g_warn_message
 
-    print("####### 煲机数据自动处理工具V1.4.3 #######")
+    print("####### 煲机数据自动处理工具" + tool_version + " #######")
     file_name = get_file_name()
     g_project_name = input('请输入项目名称：')
     g_author = input('请输入作者：')
