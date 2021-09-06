@@ -4,12 +4,10 @@ import re
 import time
 import threading
 import os
-import openpyxl
-from openpyxl.chart import Reference, ScatterChart, Series
-import pandas as pd
+import xlsxwriter
 
 # 软件版本 (每次更新后记得修改一下)
-tool_version = 'V1.4.5'
+tool_version = 'V1.5.0'
 
 begin_value = 'Sample'  # log数据开头第一个单词，一般为Sample
 
@@ -91,6 +89,10 @@ class BuildExcel:
 
         self.chr_current = 0
         self.disg_current = 0
+
+        self.workbook = None
+
+        self.module_num = None
 
     # 获取log数据中对应的模块名
     @staticmethod
@@ -264,12 +266,27 @@ class BuildExcel:
 
                 new_line[i].extend([temp_time, temp_vol, temp_curr, temp_rsoc, temp_rc, temp_fcc, temp_temp])
 
+        # 获取个模块在数组中的位置
+        self.module_num = [len(new_line[0]) - 12,   # 时间
+                           len(new_line[0]) - 11,   # 电压
+                           len(new_line[0]) - 10,   # 电流
+                           len(new_line[0]) - 9,    # RSOC
+                           len(new_line[0]) - 8,    # RC
+                           len(new_line[0]) - 7,    # FCC
+                           len(new_line[0]) - 6,    # 温度
+                           len(new_line) - 1]       # 数据长度
+
+
         # 计算容量
         cap_result = self.cap_accumulated(new_line)
 
         # 将new_line的数据生成excel
-        df = pd.DataFrame(new_line)
-        df.to_excel(self.excel_path, header=None, index=False)
+        self.workbook = xlsxwriter.Workbook(self.excel_path)
+        worksheet = self.workbook.add_worksheet('data')
+        worksheet.freeze_panes(1, 0)
+        for n in range(len(new_line)):
+            for i in range(len(new_line[n])):
+                worksheet.write(n, i, new_line[n][i])
 
         return 'success'
 
@@ -371,7 +388,7 @@ class BuildExcel:
 
                     if term_num != 0:
                         # 计算放电结束点到新term点的容量
-                        for n in range(end_num+1, term_num+1):
+                        for n in range(end_num + 1, term_num + 1):
                             temp_cap = ((line[n][time_num] - line[n - 1][time_num]) *
                                         (line[n][current_num] + line[n - 1][current_num]) / 2 + line[n - 1][-1])
                             line[n].extend([' ', temp_cap])
@@ -419,65 +436,61 @@ class BuildExcel:
         return True
 
     def print_chart(self):
-        file = openpyxl.load_workbook(self.excel_path)
-        sheet = file.active
-        sheet.freeze_panes = 'A2'
-
-        # 建立图表工作表
-        chart_sheet = file.create_chartsheet('Chart1')
-
-        chart1 = ScatterChart()
-        chart2 = ScatterChart()
+        # 创建图表
+        chartsheet = self.workbook.add_chartsheet('chart')
+        chart = self.workbook.add_chart({'type': 'scatter',
+                                         'subtype': 'straight'})
 
         # cycle test结果输出
         result_title = ''
         for i in self.cycle_result:
             result_title += '{0} : {1}   '.format(i, self.cycle_result[i])
 
-        # 图表标题
-        chart1.title = ('{0} Battery Pack Cycle-Test-Curve\n'
-                        '\t\tF/W: {1},   Charge : {2}V/{3}A,   Discharge : {4}A\n'
-                        '{5}\n'
-                        '\t\t\t\t\tTested by:{6}'
+        # 设置图表标题
+        chart.set_title({'name': '{0} Battery Pack Cycle-Test-Curve\n'
+                                 '\t\tF/W: {1},   Charge : {2}V/{3}A,   Discharge : {4}A\n'
+                                 '{5}\n'
+                                 '\t\t\t\t\tTested by:{6}'
                         .format(g_project_name, g_fw_version, g_chr_voltage,
-                                self.chr_current, self.disg_current, result_title, g_author))
+                                self.chr_current, self.disg_current, result_title, g_author)})
 
-        # x轴为时间
-        xvalue = Reference(sheet, min_row=2, min_col=sheet.max_column - 11,
-                           max_row=sheet.max_row, max_col=sheet.max_column - 11)
+        # 设置主Y轴标题
+        chart.set_y_axis({'name': 'Voltage(mV)/Current(mA)/RemCap(mAh)/FullChgCap(mAh)'})
+        # 设置副Y轴标题
+        chart.set_y2_axis({'name': 'RSOC(%)/Temperature(\'C)'})
 
-        # 根据不同的数据建立Excel散点图系列
-        for i in range(sheet.max_column - 10, sheet.max_column - 4):
-            yvalue = Reference(sheet, min_row=1, min_col=i, max_row=sheet.max_row, max_col=i)
+        ''' 添加系列数据 '''
+        # 电压
+        chart.add_series({'name': ['data', 0, self.module_num[1]],
+                          'categories': ['data', 1, self.module_num[0], self.module_num[7], self.module_num[0]],
+                          'values': ['data', 1, self.module_num[1], self.module_num[7], self.module_num[1]], })
+        # 电流
+        chart.add_series({'name': ['data', 0, self.module_num[2]],
+                          'categories': ['data', 1, self.module_num[0], self.module_num[7], self.module_num[0]],
+                          'values': ['data', 1, self.module_num[2], self.module_num[7], self.module_num[2]], })
+        # RSOC
+        chart.add_series({'name': ['data', 0, self.module_num[3]],
+                          'categories': ['data', 1, self.module_num[0], self.module_num[7], self.module_num[0]],
+                          'values': ['data', 1, self.module_num[3], self.module_num[7], self.module_num[3]],
+                          'y2_axis': 1, })
+        # RC
+        chart.add_series({'name': ['data', 0, self.module_num[4]],
+                          'categories': ['data', 1, self.module_num[0], self.module_num[7], self.module_num[0]],
+                          'values': ['data', 1, self.module_num[4], self.module_num[7], self.module_num[4]], })
+        # FCC
+        chart.add_series({'name': ['data', 0, self.module_num[5]],
+                          'categories': ['data', 1, self.module_num[0], self.module_num[7], self.module_num[0]],
+                          'values': ['data', 1, self.module_num[5], self.module_num[7], self.module_num[5]], })
+        # 温度
+        chart.add_series({'name': ['data', 0, self.module_num[6]],
+                          'categories': ['data', 1, self.module_num[0], self.module_num[7], self.module_num[0]],
+                          'values': ['data', 1, self.module_num[6], self.module_num[7], self.module_num[6]],
+                          'y2_axis': 1, })
 
-            series = Series(yvalue, xvalue, title_from_data=True)
+        # 写入图表
+        chartsheet.set_chart(chart)
 
-            # RSOC和温度分配到另一个y轴
-            if i == sheet.max_column - 8 or i == sheet.max_column - 5:
-                chart2.append(value=series)
-            else:
-                chart1.append(value=series)
-
-        # 关闭y轴框线
-        chart1.x_axis.majorGridlines = None
-        # 主y轴标题
-        chart1.y_axis.title = 'Voltage(mV)/Current(mA)/RemCap(mAh)/FullChgCap(mAh)'
-
-        # 副y轴标题
-        chart2.y_axis.title = 'RSOC(%)/Temperature(\'C)'
-        # 表示在x轴最大值处建立新的y轴
-        chart2.y_axis.crosses = 'max'
-        chart2.y_axis.axId = 200
-        # 关闭y轴和x轴的框线
-        chart2.y_axis.majorGridlines = None
-        chart2.x_axis.majorGridlines = None
-
-        chart1 += chart2
-        chart_sheet.add_chart(chart1)
-
-        file.save(self.excel_path)
-        file.close()
-
+        self.workbook.close()
 
 def main():
     global g_time_flag
@@ -506,6 +519,7 @@ def main():
     flag = build_excel.log_to_excel()
     g_time_flag = 0
 
+    # 结果分析
     if flag == 'success':
         print('\n写入完成')
     elif flag == 'error1':
@@ -516,7 +530,9 @@ def main():
         return False
     elif flag == 'error3':
         print('\n未获取到开始行，请检查log数据开始行是否以Sample开头')
+        return False
 
+    # 打印警报信息
     if g_warn_message:
         print('\nWarning:')
         for i in g_warn_message:
