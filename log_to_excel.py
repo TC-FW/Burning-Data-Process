@@ -267,15 +267,14 @@ class BuildExcel:
                 new_line[i].extend([temp_time, temp_vol, temp_curr, temp_rsoc, temp_rc, temp_fcc, temp_temp])
 
         # 获取个模块在数组中的位置
-        self.module_num = [len(new_line[0]) - 12,   # 时间
-                           len(new_line[0]) - 11,   # 电压
-                           len(new_line[0]) - 10,   # 电流
-                           len(new_line[0]) - 9,    # RSOC
-                           len(new_line[0]) - 8,    # RC
-                           len(new_line[0]) - 7,    # FCC
-                           len(new_line[0]) - 6,    # 温度
-                           len(new_line) - 1]       # 数据长度
-
+        self.module_num = [len(new_line[0]) - 12,  # 时间
+                           len(new_line[0]) - 11,  # 电压
+                           len(new_line[0]) - 10,  # 电流
+                           len(new_line[0]) - 9,  # RSOC
+                           len(new_line[0]) - 8,  # RC
+                           len(new_line[0]) - 7,  # FCC
+                           len(new_line[0]) - 6,  # 温度
+                           len(new_line) - 1]  # 数据长度
 
         # 计算容量
         cap_result = self.cap_accumulated(new_line)
@@ -492,6 +491,7 @@ class BuildExcel:
 
         self.workbook.close()
 
+
 def main():
     global g_time_flag
     global g_term_voltage
@@ -546,7 +546,6 @@ def main():
     build_excel.print_chart()
     g_time_flag = 0
     print('\n画图完成，文件保存在result文件夹下')
-
 
 if __name__ == '__main__':
     main()
