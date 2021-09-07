@@ -5,9 +5,10 @@ import time
 import threading
 import os
 import xlsxwriter
+from xml.dom import minidom
 
 # 软件版本 (每次更新后记得修改一下)
-tool_version = 'V1.5.0'
+tool_version = 'V1.5.1'
 
 begin_value = 'Sample'  # log数据开头第一个单词，一般为Sample
 
@@ -17,6 +18,9 @@ BQ28Z610, BQ40Z50R2, SN27541， BQ78Z101， BQ20Z45R1, BQ40Z50R1
 （同时也支持列表上没有芯片，只要log数据中模块名相同即可）
 若log数据不支持，在g_module_name中加入相应的模块名即可
 '''
+
+# 偏移电流范围
+g_drift_current = 100
 
 # 时间显示线程使能
 g_time_flag = 0
@@ -30,7 +34,7 @@ g_project_name = ''
 
 # log数据中的模块名
 g_module_name = [
-    ['ElapsedTime', '~Elapsed(s)'],  # 时间模块名
+    ['ElapsedTime', '~Elapsed(s)', '~Escape'],  # 时间模块名
     ['Voltage'],  # 电压模块名
     ['Current', 'AvgCurrent'],  # 电流模块名
     ['RSOC', 'StateofChg'],  # RSOC模块名
@@ -118,6 +122,9 @@ class BuildExcel:
             for i in line:
                 if re.search(n, i, re.IGNORECASE):
                     self.chip_name = n
+                    break
+                if re.search('Develop Tool', i, re.IGNORECASE):
+                    self.chip_name = 'bq8050'
                     break
 
             if self.chip_name is not None:
@@ -282,7 +289,9 @@ class BuildExcel:
         # 将new_line的数据生成excel
         self.workbook = xlsxwriter.Workbook(self.excel_path)
         worksheet = self.workbook.add_worksheet('data')
+        # 冻结首行
         worksheet.freeze_panes(1, 0)
+        # 将数据写入Excel
         for n in range(len(new_line)):
             for i in range(len(new_line[n])):
                 worksheet.write(n, i, new_line[n][i])
@@ -311,12 +320,13 @@ class BuildExcel:
             zero_num = 0
             term_num = 0
 
-            if not -10 < line[i][current_num] < 10:
+            ''' 根据漂移电流范围判断充放电 '''
+            if not -g_drift_current < line[i][current_num] < g_drift_current:
                 begin_num = i
                 end_num = 0
                 while i < len(line) and len(line[i]) == len(line[1]):
                     end_num = i
-                    if -10 < line[i][current_num] < 10:
+                    if -g_drift_current < line[i][current_num] < g_drift_current:
                         break
                     else:
                         i += 1
@@ -325,7 +335,7 @@ class BuildExcel:
                 if (end_num - begin_num) <= 10 or end_num == 0:
                     continue
 
-                ''' 充放电判断 '''
+                ''' 通过RSOC大小判断充放电 '''
                 if line[begin_num][rsoc_num] < line[end_num][rsoc_num]:
                     # 充电
                     chg_flag = 1
@@ -500,8 +510,20 @@ def main():
     global g_fw_version
     global g_project_name
     global g_warn_message
+    global begin_value
+    global g_drift_current
 
-    print("####### 煲机数据自动处理工具" + tool_version + " #######")
+    # 从config.xml文件中读取配置
+    try:
+        config = minidom.parse('./config.xml')
+        begin_value = config.getElementsByTagName('begin_value')[0].firstChild.data
+        g_drift_current = int(config.getElementsByTagName('drift_current')[0].firstChild.data)
+    except:
+        pass
+
+    print("######## 煲机数据自动处理工具" + tool_version + " ########")
+    print('开始标记 : {0}\t漂移电流范围 : {1} mA\n'.format(begin_value, g_drift_current))
+
     file_name = get_file_name()
     g_project_name = input('请输入项目名称：')
     g_author = input('请输入作者：')
@@ -529,7 +551,7 @@ def main():
         print('\n未知log数据分隔符')
         return False
     elif flag == 'error3':
-        print('\n未获取到开始行，请检查log数据开始行是否以Sample开头')
+        print('\n未获取到开始行，请检查log数据开始行是否以 %s 开头' % begin_value)
         return False
 
     # 打印警报信息
@@ -546,6 +568,7 @@ def main():
     build_excel.print_chart()
     g_time_flag = 0
     print('\n画图完成，文件保存在result文件夹下')
+
 
 if __name__ == '__main__':
     main()
