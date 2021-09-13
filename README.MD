@@ -1,4 +1,4 @@
-# LOG转Excel图表工具V1.5.1
+# LOG转Excel图表工具V1.5.2
 
 ---
 
@@ -13,6 +13,7 @@
 - 若log数据开头不是Sample，可修改config.xml文件中begin_value的值 (默认为Sample)
 - 可修改config.xml文件中drift_current调整偏移电流大小 (默认100)
   - 只有当电流大于漂移电流值，程序才会判断为充放电阶段
+- 可修改config.xml文件中的current_rate调整电流倍数 (默认为1)
 
 ---
 
@@ -30,12 +31,16 @@
 
 ## 版本更新
 
+### V1.5.2(testing) -- 2021/09/13
+1. 添加电流倍数选项 (在config.xml中修改)
+2. 添加Proto阶段输入与显示
+
 ### V1.5.1(testing) -- 2021/09/07
 1. 添加对bq8050的支持
 2. 添加config.xml配置文件，可手动配置开始标记和偏移电流范围
 
 ### V1.5.0 -- 2021/09/06
-1. 使用xlsxwiter库代替pandas和openpyxl库
+1. 使用xlsxwriter库代替pandas和openpyxl库
 2. 生成excel文档速度大幅提高
 3. 修复大数据log文件卡死问题
 

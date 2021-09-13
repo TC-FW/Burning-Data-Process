@@ -2,8 +2,10 @@
 <log_to_excel>
   <begin_value>Sample</begin_value>
   <drift_current>100</drift_current>
+  <current_rate>1</current_rate>
 </log_to_excel>
 <!--
   begin_value 为开始行第一个数据
   drift_current 为漂移电流范围
+  current_rate 电流倍数
 -->

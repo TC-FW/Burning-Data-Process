@@ -8,7 +8,7 @@ import xlsxwriter
 from xml.dom import minidom
 
 # 软件版本 (每次更新后记得修改一下)
-tool_version = 'V1.5.1'
+tool_version = 'V1.5.2'
 
 begin_value = 'Sample'  # log数据开头第一个单词，一般为Sample
 
@@ -25,12 +25,16 @@ g_drift_current = 100
 # 时间显示线程使能
 g_time_flag = 0
 
+# 电流倍数
+g_current_rate = 1
+
 # 写入参数
 g_author = ''
 g_chr_voltage = 0
 g_term_voltage = 0
 g_fw_version = ''
 g_project_name = ''
+g_project_state = ''
 
 # log数据中的模块名
 g_module_name = [
@@ -44,7 +48,7 @@ g_module_name = [
 ]
 
 # 芯片型号
-g_chip_name = ['sn27541M200', 'bq40z50']
+g_chip_name = ['sn27541M200', 'bq40z50', 'bq28z610']
 
 g_warn_message = []
 
@@ -228,9 +232,10 @@ class BuildExcel:
                     if len(new_line[i + 1]) < len_data or not new_line[i + 1][current_num]:
                         temp_curr = abs(int(2 * int(new_line[i - 1][-5]) - int(new_line[i - 2][-5])))
                     else:
-                        temp_curr = abs(int((int(new_line[i - 1][-5]) + abs(int(new_line[i + 1][current_num]))) / 2))
+                        temp_curr = abs(int((int(new_line[i - 1][-5]) +
+                                             abs(int(new_line[i + 1][current_num])) * g_current_rate) / 2))
                 else:
-                    temp_curr = abs(int(new_line[i][current_num]))
+                    temp_curr = abs(int(new_line[i][current_num])) * g_current_rate
 
                 if not new_line[i][rsoc_num]:
                     if len(new_line[i + 1]) < len_data or not new_line[i + 1][rsoc_num]:
@@ -457,10 +462,10 @@ class BuildExcel:
 
         # 设置图表标题
         chart.set_title({'name': '{0} Battery Pack Cycle-Test-Curve\n'
-                                 '\t\tF/W: {1},   Charge : {2}V/{3}A,   Discharge : {4}A\n'
-                                 '{5}\n'
-                                 '\t\t\t\t\tTested by:{6}'
-                        .format(g_project_name, g_fw_version, g_chr_voltage,
+                                 'State: Proto {1},   F/W: {2},   Charge : {3}V/{4}A,   Discharge : {5}A\n'
+                                 '{6}\n'
+                                 '\t\t\t\t\tTested by:{7}'
+                        .format(g_project_name, g_project_state, g_fw_version, g_chr_voltage,
                                 self.chr_current, self.disg_current, result_title, g_author)})
 
         # 设置主Y轴标题
@@ -509,24 +514,28 @@ def main():
     global g_chr_voltage
     global g_fw_version
     global g_project_name
+    global g_project_state
     global g_warn_message
     global begin_value
     global g_drift_current
+    global g_current_rate
 
     # 从config.xml文件中读取配置
     try:
         config = minidom.parse('./config.xml')
         begin_value = config.getElementsByTagName('begin_value')[0].firstChild.data
         g_drift_current = int(config.getElementsByTagName('drift_current')[0].firstChild.data)
+        g_current_rate = int(config.getElementsByTagName('current_rate')[0].firstChild.data)
     except:
         pass
 
     print("######## 煲机数据自动处理工具" + tool_version + " ########")
-    print('开始标记 : {0}\t漂移电流范围 : {1} mA\n'.format(begin_value, g_drift_current))
+    print('开始标记 : {0}\t漂移电流范围 : {1} mA\n电流倍数 : {2}\n'.format(begin_value, g_drift_current, g_current_rate))
 
     file_name = get_file_name()
     g_project_name = input('请输入项目名称：')
     g_author = input('请输入作者：')
+    g_project_state = input('请输入Proto阶段：')
     g_fw_version = input('请输入软件版本：')
     g_chr_voltage = input('请输入充电电压 (V)：')
     g_term_voltage = int(input('输入term_voltage (mV)：'))
