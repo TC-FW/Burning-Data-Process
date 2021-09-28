@@ -2,3 +2,5 @@
 /.idea/
 /result/
 /*.log
+/*.csv
+/test.py

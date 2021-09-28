@@ -8,7 +8,7 @@ import xlsxwriter
 from xml.dom import minidom
 
 # 软件版本 (每次更新后记得修改一下)
-tool_version = 'V1.5.2'
+tool_version = 'V1.5.3'
 
 begin_value = 'Sample'  # log数据开头第一个单词，一般为Sample
 
@@ -38,13 +38,13 @@ g_project_state = ''
 
 # log数据中的模块名
 g_module_name = [
-    ['ElapsedTime', '~Elapsed(s)', '~Escape'],  # 时间模块名
-    ['Voltage'],  # 电压模块名
-    ['Current', 'AvgCurrent'],  # 电流模块名
-    ['RSOC', 'StateofChg'],  # RSOC模块名
-    ['RemCap'],  # RC模块名
-    ['FullChgCap'],  # FCC模块名
-    ['Temperature']  # 温度模块名
+    ['ElapsedTime', '~Elapsed(s)', '~Escape', 'Time'],  # 时间模块名
+    ['Voltage', 'VCell (6C:1A)'],  # 电压模块名
+    ['Current', 'AvgCurrent', 'Current (6C:1C)'],  # 电流模块名
+    ['RSOC', 'StateofChg', 'RepSOC (6C:06)'],  # RSOC模块名
+    ['RemCap', 'RepCap (6C:05)'],  # RC模块名
+    ['FullChgCap', 'FullCapRep (6C:10)'],  # FCC模块名
+    ['Temperature', 'Temp (6C:1B)']  # 温度模块名
 ]
 
 # 芯片型号
@@ -53,11 +53,17 @@ g_chip_name = ['sn27541M200', 'bq40z50', 'bq28z610']
 g_warn_message = []
 
 
-# 获取文件夹下所有log后缀的文件名
+# 获取文件夹下所有log后缀和csv后缀的文件名
 def get_file_name():
     filename = []
+
+    # TI 芯片为log后缀
     for i in glob.glob(r'./*.log'):
         filename.append(i)
+    # Maxim 芯片为csv后缀
+    for i in glob.glob(r'./*.csv'):
+        filename.append(i)
+
     for i in range(len(filename)):
         print(" %d : %s " % (i + 1, filename[i][2:]))
     file_num = input('\n输入文件编号：')
@@ -95,25 +101,25 @@ class BuildExcel:
         self.cycle_count = 0
         self.cycle_result = {}
 
-        self.chr_current = 0
-        self.disg_current = 0
+        self.chr_parameter = '0A'
+        self.disg_parameter = '0A'
 
         self.workbook = None
 
         self.module_num = None
+
+        self.highlight_num = []
 
     # 获取log数据中对应的模块名
     @staticmethod
     def get_module_name(line):
         global g_module_name
         module_name = []
-
         for n in range(7):
             for i in g_module_name[n]:
                 if i in line:
                     module_name.append(i)
                     break
-
         if len(module_name) == 7:
             return module_name
         else:
@@ -122,6 +128,10 @@ class BuildExcel:
     # 获取芯片型号
     def get_chip_name(self, line):
         global g_chip_name
+        if '.csv' in self.file_path:
+            self.chip_name = 'MaximIC'
+            return True
+
         for n in g_chip_name:
             for i in line:
                 if re.search(n, i, re.IGNORECASE):
@@ -135,6 +145,8 @@ class BuildExcel:
                 break
 
     def log_to_excel(self):
+        global begin_value
+
         file = open(self.file_path, 'r')
         line = file.readlines()
         file.close()
@@ -143,6 +155,10 @@ class BuildExcel:
             os.mkdir('./result/')
         except:
             pass
+
+        # 当为Maxim的芯片时，修改为Time
+        if '.csv' in self.file_path:
+            begin_value = 'Time'
 
         # 当获取到begin_value后，定义这一行为开始行
         begin_num = None
@@ -211,63 +227,136 @@ class BuildExcel:
                 （若连续读取失败的数据过多，方法2的估计结果会很不准确，之后版本需要更新算法来估计）
                 '''
             elif len(new_line[i]) >= len_data:
-                if not new_line[i][time_num]:
-                    if len(new_line[i + 1]) < len_data or not new_line[i + 1][time_num]:
-                        temp_time = round((2 * float(new_line[i - 1][-7]) - float(new_line[i - 2][-7])), 6)
+                # TI芯片下的数据获取
+                if self.chip_name != 'MaximIC':
+                    # 时间计算
+                    if not new_line[i][time_num]:
+                        if len(new_line[i + 1]) < len_data or not new_line[i + 1][time_num]:
+                            temp_time = round((2 * float(new_line[i - 1][-7]) - float(new_line[i - 2][-7])), 6)
+                        else:
+                            temp_time = round(
+                                (float(new_line[i - 1][time_num]) + float(new_line[i + 1][time_num]) / 3600) / 2, 6)
                     else:
-                        temp_time = round(
-                            (float(new_line[i - 1][time_num]) + float(new_line[i + 1][time_num]) / 3600) / 2, 6)
-                else:
-                    temp_time = round(float(new_line[i][time_num]) / 3600, 6)
+                        temp_time = round(float(new_line[i][time_num]) / 3600, 6)
 
-                if not new_line[i][voltage_num]:
-                    if len(new_line[i + 1]) < len_data or not new_line[i + 1][voltage_num]:
-                        temp_vol = int(2 * int(new_line[i - 1][-6]) - int(new_line[i - 2][-6]))
+                    # 电压计算
+                    if not new_line[i][voltage_num]:
+                        if len(new_line[i + 1]) < len_data or not new_line[i + 1][voltage_num]:
+                            temp_vol = int(2 * int(new_line[i - 1][-6]) - int(new_line[i - 2][-6]))
+                        else:
+                            temp_vol = int((int(new_line[i - 1][-6]) + int(new_line[i + 1][voltage_num])) / 2)
                     else:
-                        temp_vol = int((int(new_line[i - 1][-6]) + int(new_line[i + 1][voltage_num])) / 2)
-                else:
-                    temp_vol = int(new_line[i][voltage_num])
+                        temp_vol = int(new_line[i][voltage_num])
 
-                if not new_line[i][current_num]:
-                    if len(new_line[i + 1]) < len_data or not new_line[i + 1][current_num]:
-                        temp_curr = abs(int(2 * int(new_line[i - 1][-5]) - int(new_line[i - 2][-5])))
+                    # 电流计算
+                    if not new_line[i][current_num]:
+                        if len(new_line[i + 1]) < len_data or not new_line[i + 1][current_num]:
+                            temp_curr = abs(int(2 * int(new_line[i - 1][-5]) - int(new_line[i - 2][-5])))
+                        else:
+                            temp_curr = abs(int((int(new_line[i - 1][-5]) +
+                                                 abs(int(new_line[i + 1][current_num])) * g_current_rate) / 2))
                     else:
-                        temp_curr = abs(int((int(new_line[i - 1][-5]) +
-                                             abs(int(new_line[i + 1][current_num])) * g_current_rate) / 2))
-                else:
-                    temp_curr = abs(int(new_line[i][current_num])) * g_current_rate
+                        temp_curr = abs(int(new_line[i][current_num])) * g_current_rate
 
-                if not new_line[i][rsoc_num]:
-                    if len(new_line[i + 1]) < len_data or not new_line[i + 1][rsoc_num]:
-                        temp_rsoc = int(2 * int(new_line[i - 1][-4]) - int(new_line[i - 2][-4]))
+                    # RSOC计算
+                    if not new_line[i][rsoc_num]:
+                        if len(new_line[i + 1]) < len_data or not new_line[i + 1][rsoc_num]:
+                            temp_rsoc = int(2 * int(new_line[i - 1][-4]) - int(new_line[i - 2][-4]))
+                        else:
+                            temp_rsoc = int((int(new_line[i - 1][-4]) + int(new_line[i + 1][rsoc_num])) / 2)
                     else:
-                        temp_rsoc = int((int(new_line[i - 1][-4]) + int(new_line[i + 1][rsoc_num])) / 2)
-                else:
-                    temp_rsoc = int(new_line[i][rsoc_num])
+                        temp_rsoc = int(new_line[i][rsoc_num])
 
-                if not new_line[i][rc_num]:
-                    if len(new_line[i + 1]) < len_data or not new_line[i + 1][rc_num]:
-                        temp_rc = int(2 * int(new_line[i - 1][-3]) - int(new_line[i - 2][-3]))
+                    # RC计算
+                    if not new_line[i][rc_num]:
+                        if len(new_line[i + 1]) < len_data or not new_line[i + 1][rc_num]:
+                            temp_rc = int(2 * int(new_line[i - 1][-3]) - int(new_line[i - 2][-3]))
+                        else:
+                            temp_rc = int((int(new_line[i - 1][-3]) + int(new_line[i + 1][rc_num])) / 2)
                     else:
-                        temp_rc = int((int(new_line[i - 1][-3]) + int(new_line[i + 1][rc_num])) / 2)
-                else:
-                    temp_rc = int(new_line[i][rc_num])
+                        temp_rc = int(new_line[i][rc_num])
 
-                if not new_line[i][fcc_num]:
-                    if len(new_line[i + 1]) < len_data or not new_line[i + 1][fcc_num]:
-                        temp_fcc = int(2 * int(new_line[i - 1][-2]) - int(new_line[i - 2][-2]))
+                    # FCC计算
+                    if not new_line[i][fcc_num]:
+                        if len(new_line[i + 1]) < len_data or not new_line[i + 1][fcc_num]:
+                            temp_fcc = int(2 * int(new_line[i - 1][-2]) - int(new_line[i - 2][-2]))
+                        else:
+                            temp_fcc = int((int(new_line[i - 1][-2]) + int(new_line[i + 1][fcc_num])) / 2)
                     else:
-                        temp_fcc = int((int(new_line[i - 1][-2]) + int(new_line[i + 1][fcc_num])) / 2)
-                else:
-                    temp_fcc = int(new_line[i][fcc_num])
+                        temp_fcc = int(new_line[i][fcc_num])
 
-                if not new_line[i][temp_num]:
-                    if len(new_line[i + 1]) < len_data or not new_line[i + 1][temp_num]:
-                        temp_temp = float(2 * float(new_line[i - 1][-1]) - float(new_line[i - 2][-1]))
+                    # 温度计算
+                    if not new_line[i][temp_num]:
+                        if len(new_line[i + 1]) < len_data or not new_line[i + 1][temp_num]:
+                            temp_temp = float(2 * float(new_line[i - 1][-1]) - float(new_line[i - 2][-1]))
+                        else:
+                            temp_temp = float((float(new_line[i - 1][-1]) + float(new_line[i + 1][temp_num])) / 2)
                     else:
-                        temp_temp = float((float(new_line[i - 1][-1]) + float(new_line[i + 1][temp_num])) / 2)
+                        temp_temp = float(new_line[i][temp_num])
+
+                # Maxim芯片下的数据获取
                 else:
-                    temp_temp = float(new_line[i][temp_num])
+                    # 时间计算
+                    dt = time.strptime(new_line[i][time_num], '%m/%d/%Y %H:%M:%S')
+                    if i == 1:
+                        begin_dt = dt
+                    temp_time = round((time.mktime(dt) - time.mktime(begin_dt)) / 3600, 6)
+
+                    # 电压计算
+                    if not new_line[i][voltage_num]:
+                        if len(new_line[i + 1]) < len_data or not new_line[i + 1][voltage_num]:
+                            temp_vol = float(2 * float(new_line[i - 1][-6]) - float(new_line[i - 2][-6]))
+                        else:
+                            temp_vol = float(
+                                (float(new_line[i - 1][-6]) + float(new_line[i + 1][voltage_num]) * 1000) / 2)
+                    else:
+                        temp_vol = float(new_line[i][voltage_num]) * 1000
+
+                    # 电流计算
+                    if not new_line[i][current_num]:
+                        if len(new_line[i + 1]) < len_data or not new_line[i + 1][current_num]:
+                            temp_curr = abs(float(2 * float(new_line[i - 1][-5]) - float(new_line[i - 2][-5])))
+                        else:
+                            temp_curr = abs(float((float(new_line[i - 1][-5]) +
+                                                   abs(float(new_line[i + 1][current_num])) * g_current_rate) / 2))
+                    else:
+                        temp_curr = abs(float(new_line[i][current_num])) * g_current_rate
+
+                    # RSOC计算
+                    if not new_line[i][rsoc_num]:
+                        if len(new_line[i + 1]) < len_data or not new_line[i + 1][rsoc_num]:
+                            temp_rsoc = float(2 * float(new_line[i - 1][-4]) - float(new_line[i - 2][-4]))
+                        else:
+                            temp_rsoc = float((float(new_line[i - 1][-4]) + float(new_line[i + 1][rsoc_num])) / 2)
+                    else:
+                        temp_rsoc = float(new_line[i][rsoc_num])
+
+                    # RC计算
+                    if not new_line[i][rc_num]:
+                        if len(new_line[i + 1]) < len_data or not new_line[i + 1][rc_num]:
+                            temp_rc = float(2 * float(new_line[i - 1][-3]) - float(new_line[i - 2][-3]))
+                        else:
+                            temp_rc = float((float(new_line[i - 1][-3]) + float(new_line[i + 1][rc_num])) / 2)
+                    else:
+                        temp_rc = float(new_line[i][rc_num])
+
+                    # FCC计算
+                    if not new_line[i][fcc_num]:
+                        if len(new_line[i + 1]) < len_data or not new_line[i + 1][fcc_num]:
+                            temp_fcc = float(2 * float(new_line[i - 1][-2]) - float(new_line[i - 2][-2]))
+                        else:
+                            temp_fcc = float((float(new_line[i - 1][-2]) + float(new_line[i + 1][fcc_num])) / 2)
+                    else:
+                        temp_fcc = float(new_line[i][fcc_num])
+
+                    # 温度计算
+                    if not new_line[i][temp_num]:
+                        if len(new_line[i + 1]) < len_data or not new_line[i + 1][temp_num]:
+                            temp_temp = float(2 * float(new_line[i - 1][-1]) - float(new_line[i - 2][-1]))
+                        else:
+                            temp_temp = float((float(new_line[i - 1][-1]) + float(new_line[i + 1][temp_num])) / 2)
+                    else:
+                        temp_temp = float(new_line[i][temp_num])
 
                 ''' 将添加特定数据 '''
                 # 部分芯片通讯出现error时，新生成的数据的位置会被打乱，程序可以自动修复
@@ -297,9 +386,17 @@ class BuildExcel:
         # 冻结首行
         worksheet.freeze_panes(1, 0)
         # 将数据写入Excel
+        bg_color = self.workbook.add_format()
+        bg_color.set_bg_color('#D8E4BC')
+
         for n in range(len(new_line)):
-            for i in range(len(new_line[n])):
-                worksheet.write(n, i, new_line[n][i])
+            # term点和zero点添加背景色
+            if n in self.highlight_num and n != 0:
+                for i in range(len(new_line[n])):
+                    worksheet.write(n, i, new_line[n][i], bg_color)
+            else:
+                for i in range(len(new_line[n])):
+                    worksheet.write(n, i, new_line[n][i])
 
         return 'success'
 
@@ -344,13 +441,29 @@ class BuildExcel:
                 if line[begin_num][rsoc_num] < line[end_num][rsoc_num]:
                     # 充电
                     chg_flag = 1
+
+                    # 判断充电电流大小
                     chg_curr = line[round((end_num - begin_num) / 10) + begin_num][current_num]
-                    self.chr_current = round(chg_curr / 100) / 10
+                    self.chr_parameter = str(round(chg_curr / 100) / 10) + 'A'
                 else:
                     # 放电
                     disg_flag = 1
-                    disg_curr = line[round((end_num - begin_num) / 10) + begin_num][current_num]
-                    self.disg_current = round(disg_curr / 100) / 10
+
+                    # 判断恒流放电还是恒功率放电
+                    disg_curr_mid = line[round((end_num - begin_num) / 2) + begin_num][current_num]
+
+                    # 取三个时间点的放电电流，若三个时间点之间的误差不超过500，则为恒流放电
+                    if abs(disg_curr_mid - line[begin_num + 5][current_num]) < 500 and abs(
+                            disg_curr_mid - line[end_num - 5][current_num]) < 500 and abs(
+                            line[begin_num + 5][current_num] - line[end_num - 5][current_num]) < 500:
+                        self.disg_parameter = str(round(disg_curr_mid / 100) / 10) + 'A'
+
+                    else:
+                        # 恒功率放电时，取三个时间点的功率计算平均值
+                        disg_power = round((disg_curr_mid * line[round((end_num - begin_num) / 2)][voltage_num] +
+                                            line[begin_num + 5][current_num] * line[begin_num + 5][voltage_num] +
+                                            line[end_num - 5][current_num] * line[end_num - 5][voltage_num]) / 3000000)
+                        self.disg_parameter = str(int(disg_power / 10) * 10) + 'W'
 
                     # 判断为放电阶段时，记录下rc 0点和term点，用于计算容量差
                     for n in range(begin_num, end_num):
@@ -370,6 +483,37 @@ class BuildExcel:
                                     (line[n][current_num] + line[n - 1][current_num]) / 2 + line[n - 1][-1])
 
                         line[n].extend([' ', temp_cap])
+
+                    ''' Maxim芯片zero点计算方法 '''
+                    if self.chip_name == 'MaximIC':
+                        t_2 = 0
+                        t_1 = 0
+                        t_0 = 0
+
+                        for n in range(begin_num, end_num + 1):
+                            if 2 < line[n][rsoc_num] <= 3:
+                                t_2 += 1
+                            if 1 < line[n][rsoc_num] <= 2:
+                                t_1 += 1
+                            if 0 <= line[n][rsoc_num] <= 1:
+                                t_0 += 1
+                        if t_0 < t_1 and t_2 < (t_1 + t_0) and t_0 != 0:
+                            zero_num = end_num - (t_1 + t_0 - 2 * t_2)
+                        elif t_0 >= t_1:
+                            zero_num = end_num - (t_0 - t_1)
+                        pass
+
+                    ''' Maxim芯片term点确定方法 '''
+
+                    if self.chip_name == 'MaximIC':
+                        fstat_num = line[0].index('FStat (6C:3D)')
+                        for n in range(begin_num, end_num + 1):
+                            try:
+                                if int(line[n][fstat_num], 16) & 0x100:
+                                    term_num = n
+                                    break
+                            except:
+                                pass
 
                     ''' BQ40Z50计算term点方式 '''
                     # 检测 GaugeStat 中的 EDV 位，若EDV位为1，则当该时刻为term点
@@ -442,6 +586,7 @@ class BuildExcel:
                     else:
                         self.cycle_result['Cycle ' + str(self.cycle_count)] = ('{:.2%} FAIL'.format(cap_dev_percentage))
 
+                    self.highlight_num.extend([term_num, zero_num])
                     chg_flag = 0
 
             disg_flag = 0
@@ -462,11 +607,11 @@ class BuildExcel:
 
         # 设置图表标题
         chart.set_title({'name': '{0} Battery Pack Cycle-Test-Curve\n'
-                                 'State: Proto {1},   F/W: {2},   Charge : {3}V/{4}A,   Discharge : {5}A\n'
+                                 'State: Proto {1},   F/W: {2},   Charge : {3}V/{4},   Discharge : {5}\n'
                                  '{6}\n'
                                  '\t\t\t\t\tTested by:{7}'
                         .format(g_project_name, g_project_state, g_fw_version, g_chr_voltage,
-                                self.chr_current, self.disg_current, result_title, g_author)})
+                                self.chr_parameter, self.disg_parameter, result_title, g_author)})
 
         # 设置主Y轴标题
         chart.set_y_axis({'name': 'Voltage(mV)/Current(mA)/RemCap(mAh)/FullChgCap(mAh)'})
@@ -530,7 +675,8 @@ def main():
         pass
 
     print("######## 煲机数据自动处理工具" + tool_version + " ########")
-    print('开始标记 : {0}\t漂移电流范围 : {1} mA\n电流倍数 : {2}\n'.format(begin_value, g_drift_current, g_current_rate))
+    print('开始标记 : {0} (Maxim 芯片可忽略这一项)\n漂移电流范围 : {1} mA\t电流倍数 : {2}\n'
+          .format(begin_value, g_drift_current, g_current_rate))
 
     file_name = get_file_name()
     g_project_name = input('请输入项目名称：')
