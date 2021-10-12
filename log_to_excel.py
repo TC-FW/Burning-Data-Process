@@ -8,13 +8,14 @@ import xlsxwriter
 from xml.dom import minidom
 
 # 软件版本 (每次更新后记得修改一下)
-tool_version = 'V1.5.3'
+tool_version = 'V1.5.4'
 
 begin_value = 'Sample'  # log数据开头第一个单词，一般为Sample
 
 '''
 目前测试可以使用的芯片列表如下：
-BQ28Z610, BQ40Z50R2, SN27541， BQ78Z101， BQ20Z45R1, BQ40Z50R1
+BQ28Z610, BQ40Z50R2, SN27541， BQ78Z101， BQ20Z45R1, BQ40Z50R1, BQ34Z100
+BQ8050, MAX17300
 （同时也支持列表上没有芯片，只要log数据中模块名相同即可）
 若log数据不支持，在g_module_name中加入相应的模块名即可
 '''
@@ -41,14 +42,14 @@ g_module_name = [
     ['ElapsedTime', '~Elapsed(s)', '~Escape', 'Time'],  # 时间模块名
     ['Voltage', 'VCell (6C:1A)'],  # 电压模块名
     ['Current', 'AvgCurrent', 'Current (6C:1C)'],  # 电流模块名
-    ['RSOC', 'StateofChg', 'RepSOC (6C:06)'],  # RSOC模块名
+    ['RSOC', 'StateofChg', 'StateofCharge', 'RepSOC (6C:06)'],  # RSOC模块名
     ['RemCap', 'RepCap (6C:05)'],  # RC模块名
     ['FullChgCap', 'FullCapRep (6C:10)'],  # FCC模块名
     ['Temperature', 'Temp (6C:1B)']  # 温度模块名
 ]
 
 # 芯片型号
-g_chip_name = ['sn27541M200', 'bq40z50', 'bq28z610']
+g_chip_name = ['sn27541M200', 'bq40z50', 'bq28z610', 'bq34z100']
 
 g_warn_message = []
 
@@ -575,7 +576,11 @@ class BuildExcel:
                         cap_dev = 0
                         cap_dev_percentage = line[term_num][rsoc_num] / 100
 
-                    cap_percentage = line[term_num][-1] / line[begin_num][fcc_num]
+                    if line[begin_num][fcc_num] != 0:
+                        cap_percentage = line[term_num][-1] / line[begin_num][fcc_num]
+                    else:
+                        cap_percentage = 0
+
                     if cap_percentage > 1:
                         cap_percentage = 1 / cap_percentage
                     line[term_num].extend(
