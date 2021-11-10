@@ -8,7 +8,7 @@ import xlsxwriter
 from xml.dom import minidom
 
 # 软件版本 (每次更新后记得修改一下)
-tool_version = 'V1.5.4'
+tool_version = 'V1.5.5'
 
 begin_value = 'Sample'  # log数据开头第一个单词，一般为Sample
 
@@ -242,7 +242,9 @@ class BuildExcel:
 
                     # 电压计算
                     if not new_line[i][voltage_num]:
-                        if len(new_line[i + 1]) < len_data or not new_line[i + 1][voltage_num]:
+                        if i == 1:
+                            temp_vol = 0
+                        elif i + 1 >= len(new_line) or len(new_line[i + 1]) < len_data or not new_line[i + 1][voltage_num]:
                             temp_vol = int(2 * int(new_line[i - 1][-6]) - int(new_line[i - 2][-6]))
                         else:
                             temp_vol = int((int(new_line[i - 1][-6]) + int(new_line[i + 1][voltage_num])) / 2)
@@ -251,7 +253,9 @@ class BuildExcel:
 
                     # 电流计算
                     if not new_line[i][current_num]:
-                        if len(new_line[i + 1]) < len_data or not new_line[i + 1][current_num]:
+                        if i == 1:
+                            temp_curr = 0
+                        elif i + 1 >= len(new_line) or len(new_line[i + 1]) < len_data or not new_line[i + 1][current_num]:
                             temp_curr = abs(int(2 * int(new_line[i - 1][-5]) - int(new_line[i - 2][-5])))
                         else:
                             temp_curr = abs(int((int(new_line[i - 1][-5]) +
@@ -261,7 +265,9 @@ class BuildExcel:
 
                     # RSOC计算
                     if not new_line[i][rsoc_num]:
-                        if len(new_line[i + 1]) < len_data or not new_line[i + 1][rsoc_num]:
+                        if i == 1:
+                            temp_rsoc = 0
+                        elif i + 1 >= len(new_line) or len(new_line[i + 1]) < len_data or not new_line[i + 1][rsoc_num]:
                             temp_rsoc = int(2 * int(new_line[i - 1][-4]) - int(new_line[i - 2][-4]))
                         else:
                             temp_rsoc = int((int(new_line[i - 1][-4]) + int(new_line[i + 1][rsoc_num])) / 2)
@@ -270,7 +276,9 @@ class BuildExcel:
 
                     # RC计算
                     if not new_line[i][rc_num]:
-                        if len(new_line[i + 1]) < len_data or not new_line[i + 1][rc_num]:
+                        if i == 1:
+                            temp_rc = 0
+                        elif i + 1 >= len(new_line) or len(new_line[i + 1]) < len_data or not new_line[i + 1][rc_num]:
                             temp_rc = int(2 * int(new_line[i - 1][-3]) - int(new_line[i - 2][-3]))
                         else:
                             temp_rc = int((int(new_line[i - 1][-3]) + int(new_line[i + 1][rc_num])) / 2)
@@ -279,7 +287,9 @@ class BuildExcel:
 
                     # FCC计算
                     if not new_line[i][fcc_num]:
-                        if len(new_line[i + 1]) < len_data or not new_line[i + 1][fcc_num]:
+                        if i == 1:
+                            temp_fcc = 0
+                        elif i + 1 >= len(new_line) or len(new_line[i + 1]) < len_data or not new_line[i + 1][fcc_num]:
                             temp_fcc = int(2 * int(new_line[i - 1][-2]) - int(new_line[i - 2][-2]))
                         else:
                             temp_fcc = int((int(new_line[i - 1][-2]) + int(new_line[i + 1][fcc_num])) / 2)
@@ -288,7 +298,9 @@ class BuildExcel:
 
                     # 温度计算
                     if not new_line[i][temp_num]:
-                        if len(new_line[i + 1]) < len_data or not new_line[i + 1][temp_num]:
+                        if i == 1:
+                            temp_temp = 0
+                        elif i + 1 >= len(new_line) or len(new_line[i + 1]) < len_data or not new_line[i + 1][temp_num]:
                             temp_temp = float(2 * float(new_line[i - 1][-1]) - float(new_line[i - 2][-1]))
                         else:
                             temp_temp = float((float(new_line[i - 1][-1]) + float(new_line[i + 1][temp_num])) / 2)
