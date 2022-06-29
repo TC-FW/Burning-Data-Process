@@ -8,7 +8,7 @@ import xlsxwriter
 from xml.dom import minidom
 
 # 软件版本 (每次更新后记得修改一下)
-tool_version = 'V1.5.5'
+tool_version = 'V1.5.6'
 
 begin_value = 'Sample'  # log数据开头第一个单词，一般为Sample
 
@@ -458,7 +458,7 @@ class BuildExcel:
                     # 判断充电电流大小
                     chg_curr = line[round((end_num - begin_num) / 10) + begin_num][current_num]
                     self.chr_parameter = str(round(chg_curr / 100) / 10) + 'A'
-                else:
+                elif line[begin_num][rsoc_num] > line[end_num][rsoc_num]:
                     # 放电
                     disg_flag = 1
 
@@ -528,9 +528,9 @@ class BuildExcel:
                             except:
                                 pass
 
-                    ''' BQ40Z50计算term点方式 '''
+                    ''' 自动确定term点方式 '''
                     # 检测 GaugeStat 中的 EDV 位，若EDV位为1，则当该时刻为term点
-                    if self.chip_name == 'bq40z50':
+                    if self.chip_name != 'MaximIC' and 'GaugeStat' in line[0]:
                         gauge_status_num = line[0].index('GaugeStat')
 
                         for n in range(begin_num, end_num + 1):
