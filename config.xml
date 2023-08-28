@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <log_to_excel>
   <begin_value>Sample</begin_value>
-  <drift_current>120</drift_current>
+  <drift_current>50</drift_current>
   <current_rate>1</current_rate>
 </log_to_excel>
 <!--

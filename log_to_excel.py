@@ -8,7 +8,7 @@ import xlsxwriter
 from xml.dom import minidom
 
 # 软件版本 (每次更新后记得修改一下)
-tool_version = 'V2.0'
+tool_version = 'V2.1'
 
 begin_value = 'Sample'  # log数据开头第一个单词，一般为Sample
 
@@ -287,7 +287,10 @@ class BuildExcel:
                 # Maxim芯片下的数据获取
                 else:
                     # 时间计算
-                    dt = time.strptime(new_line[i][time_num], '%m/%d/%Y %H:%M:%S')
+                    try:
+                        dt = time.strptime(new_line[i][time_num], '%m/%d/%Y %H:%M:%S')
+                    except:
+                        dt = time.strptime(new_line[i][time_num], '%m/%d/%Y %H:%M')
                     if i == 1:
                         begin_dt = dt
                     temp_time = round((time.mktime(dt) - time.mktime(begin_dt)) / 3600, 6)
@@ -503,9 +506,13 @@ class BuildExcel:
                         pass
 
                     ''' Maxim芯片term点确定方法 '''
-
                     if self.chip_name == 'MaximIC':
-                        fstat_num = line[0].index('FStat (6C:3D)')
+                        try:
+                            # MAX17300
+                            fstat_num = line[0].index('FStat (6C:3D)')
+                        except:
+                            # MAX17201
+                            fstat_num = line[0].index('FStat ()')
                         for n in range(begin_num, end_num + 1):
                             try:
                                 if int(line[n][fstat_num], 16) & 0x100:
@@ -531,7 +538,7 @@ class BuildExcel:
                     # 当term点没有出现，在end_num往后20个时间点内检测是否出现term点，若出现则定为新的term点
                     if term_num == 0:
                         i = end_num
-                        while i - end_num < 7000 and i < len(line):
+                        while i - end_num < 20 and i < len(line):
                             # bq40z50的term点计算
                             if self.chip_name != 'MaximIC' and 'GaugeStat' in line[0]:
                                 if (len(line[i]) >= self.len_data and
